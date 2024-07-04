@@ -109,21 +109,61 @@ void LoadConfig()
 
 //Patches all costume load functions
 
-void PatchCostumeLoads()
+bool PatchCostumeLoads()
 {
 	//WB1
 	BYTE CostumePatch1[] = { 0xBE, (BYTE)Costume, 0x00, 0x00, 0x00 };
-	BYTE CostumePatch2[] = { 0xB8, (BYTE)Costume, 0x00, 0x00, 0x00 };
-	Patch(CostumePatch1, PatternScan("BE ? ? ? ? 74 ? 8B 82 C4 02 00 00", tomb1DLL), sizeof(CostumePatch1));
-	Patch(CostumePatch2, PatternScan("B8 ? ? ? ? 66 44 89 15 ? ? ? ?", tomb1DLL), sizeof(CostumePatch2));
+	BYTE CostumePatch2[] = { 0x41, 0xBB, (BYTE)Costume, 0x00, 0x00, 0x00 };
+
+	BYTE* WB1CL1 = PatternScan("BE ? ? ? ? 74 ? 8B 82 C4 02 00 00", tomb1DLL);
+	BYTE* WB1CL2 = PatternScan("41 BB ? ? ? ? 8B 05 ? ? ? ?", tomb1DLL);
+
+	if (!WB1CL1 || !WB1CL2)
+	{
+		std::cout << "[!] WB1 costume load not found!" << std::endl;
+		return false;
+	}
+
+	Patch(CostumePatch1, WB1CL1, sizeof(CostumePatch1));
+	Patch(CostumePatch2, WB1CL2, sizeof(CostumePatch2));
+
 	//WB2
 	BYTE CostumePatch3[] = { 0x41, 0xB9, (BYTE)Costume, 0x00, 0x00, 0x00 };
-	Patch(CostumePatch3, PatternScan("41 B9 ? ? ? ? 66 83 0D ? ? ? ? ?", tomb1DLL), sizeof(CostumePatch3));
+
+	BYTE* WB2CL = PatternScan("41 B9 ? ? ? ? 66 83 0D ? ? ? ? ?", tomb1DLL);
+
+	if (!WB2CL)
+	{
+		std::cout << "[!] WB2 costume load not found!" << std::endl;
+		return false;
+	}
+
+	Patch(CostumePatch3, WB2CL, sizeof(CostumePatch3));
+
 	//TR2 LOAD
+	BYTE* TR2CL = PatternScan("C7 82 CC 02 00 00 ? ? ? ? 44 0F B7 0D ? ? ? ?", tomb2DLL);
+
+	if (!TR2CL)
+	{
+		std::cout << "[!] TR2 costume load not found!" << std::endl;
+		return false;
+	}
+
 	BYTE CostumePatch5[] = { 0xC7, 0x82, 0xCC, 0x02, 0x00, 0x00, (BYTE)Costume, 0x00, 0x00, 0x00 };
-	Patch(CostumePatch5, PatternScan("C7 82 CC 02 00 00 ? ? ? ? 44 0F B7 0D ? ? ? ?", tomb2DLL), sizeof(CostumePatch5));
+	Patch(CostumePatch5, TR2CL, sizeof(CostumePatch5));
+
 	//TR3 LOAD
-	Patch(CostumePatch5, PatternScan("C7 82 CC 02 00 00 ? ? ? ? 0F B7 15 ? ? ? ?", tomb3DLL), sizeof(CostumePatch5));
+	BYTE* TR3CL = PatternScan("C7 82 CC 02 00 00 ? ? ? ? 0F B7 15 ? ? ? ?", tomb3DLL);
+
+	if (!TR3CL)
+	{
+		std::cout << "[!] TR3 costume load not found!" << std::endl;
+		return false;
+	}
+
+	Patch(CostumePatch5, TR3CL, sizeof(CostumePatch5));
+
+	return true;
 }
 
 void PatchModules()
@@ -155,9 +195,9 @@ void PatchModules()
 
 	//Find game ptr that stores the current costume
 
-	std::uintptr_t TR1GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 1D ? ? ? ? 48 8D 3D ? ? ? ? 83 BB F8 02 00 00 ?", tomb1DLL);
-	std::uintptr_t TR2GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 1D ? ? ? ? 48 8D 3D ? ? ? ? 83 BB F8 02 00 00 ?", tomb2DLL);
-	std::uintptr_t TR3GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 1D ? ? ? ? 48 8D 3D ? ? ? ? 83 BB F8 02 00 00 ?", tomb3DLL);
+	std::uintptr_t TR1GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 0D ? ? ? ? FF C0", tomb1DLL);
+	std::uintptr_t TR2GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 0D ? ? ? ? FF C0", tomb2DLL);
+	std::uintptr_t TR3GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 0D ? ? ? ? FF C0", tomb3DLL);
 
 
 	if (!TR1GamePTR_Addr || !TR2GamePTR_Addr || !TR3GamePTR_Addr)
@@ -210,7 +250,10 @@ void PatchModules()
 	if (bOverrideOriginals)
 	{
 
-		PatchCostumeLoads();
+		if (!PatchCostumeLoads())
+		{
+			return;
+		}
 
 		Orig_PhotoModeTickTR1 = reinterpret_cast<PhotoModeTickTR1_t>(PatternScan("48 89 5C 24 10 48 89 74 24 18 57 48 83 EC ? E8 ? ? ? ?", tomb1DLL));
 		Orig_PhotoModeTickTR2 = reinterpret_cast<PhotoModeTickTR23_t>(PatternScan("48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 48 83 EC ? E8 ? ? ? ?", tomb2DLL));
@@ -226,8 +269,9 @@ void PatchModules()
 		Orig_PhotoModeTickTR2 = reinterpret_cast<PhotoModeTickTR23_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR2, (BYTE*)hk_PhotoModeTickTR2, 15));
 		Orig_PhotoModeTickTR3 = reinterpret_cast<PhotoModeTickTR23_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR3, (BYTE*)hk_PhotoModeTickTR3, 15));
 
-		BYTE* CostumeSwitchTableTR2 = PatternScan("77 ? 4C 8D 0D ? ? ? ? 43 8B 8C 99 94 7F 06 00", tomb2DLL);
-		BYTE* CostumeSwitchTableTR3 = PatternScan("77 ? 4C 8D 0D ? ? ? ? 41 8B 8C 81 90 6D 0A 00", tomb3DLL);
+		//C7 82 CC 02 00 00 03 00 00 00
+		BYTE* CostumeSwitchTableTR2 = PatternScan("77 ? 4C 8D 0D ? ? ? ? 43 8B 8C 99 40 88 06 00", tomb2DLL);
+		BYTE* CostumeSwitchTableTR3 = PatternScan("77 ? 4C 8D 0D ? ? ? ? 41 8B 8C 81 48 66 0A 00", tomb3DLL);
 
 		if (!CostumeSwitchTableTR2 || !CostumeSwitchTableTR3)
 		{
