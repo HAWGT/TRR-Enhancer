@@ -25,13 +25,12 @@ HMODULE tomb6DLL = nullptr;
 
 int* SelectedCostumePTR = nullptr;
 
-typedef __int16(*PhotoModeTickTR1_t)(void);
-PhotoModeTickTR1_t Orig_PhotoModeTickTR1;
-__int16 hk_PhotoModeTickTR1();
+typedef __int64(*PhotoModeTickTR123_t)(void);
+PhotoModeTickTR123_t Orig_PhotoModeTickTR1;
+PhotoModeTickTR123_t Orig_PhotoModeTickTR2;
+PhotoModeTickTR123_t Orig_PhotoModeTickTR3;
 
-typedef __int64(*PhotoModeTickTR23_t)(void);
-PhotoModeTickTR23_t Orig_PhotoModeTickTR2;
-PhotoModeTickTR23_t Orig_PhotoModeTickTR3;
+__int64 hk_PhotoModeTickTR1();
 __int64 hk_PhotoModeTickTR2();
 __int64 hk_PhotoModeTickTR3();
 
@@ -90,7 +89,7 @@ void LoadConfig()
 			}
 			if (!param.compare("Costume"))
 			{
-				Costume = (value >= 1 && value <= 14) ? value : 1;
+				Costume = value;
 				std::cout << param << " " << Costume << "\n";
 			}
 			if (!param.compare("OverrideOriginals"))
@@ -175,17 +174,6 @@ bool PatchCostumeLoads123()
 	}
 
 	Patch(CostumePatch4, TR3CL, sizeof(CostumePatch4));
-
-	return true;
-}
-
-bool PatchCostumeLoads456()
-{
-	//BYTE CostumePatch1[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
-
-	//BYTE* TR4CL = PatternScan("0F 11 83 60 04 00 00", tomb4DLL);
-
-	//48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 55 41 54
 
 	return true;
 }
@@ -300,9 +288,9 @@ void PatchModules123()
 			return;
 		}
 
-		Orig_PhotoModeTickTR1 = reinterpret_cast<PhotoModeTickTR1_t>(PatternScan("48 89 5C 24 18 55 56 57 41 54 41 55 41 56 41 57 48 83 EC ? 4C 8B 0D ? ? ? ?", tomb1DLL));
-		Orig_PhotoModeTickTR2 = reinterpret_cast<PhotoModeTickTR23_t>(PatternScan("48 89 5C 24 10 48 89 6C 24 18 48 89 7C 24 20 41 56 48 83 EC ? E8 ? ? ? ?", tomb2DLL));
-		Orig_PhotoModeTickTR3 = reinterpret_cast<PhotoModeTickTR23_t>(PatternScan("48 89 5C 24 10 48 89 6C 24 18 48 89 7C 24 20 41 56 48 83 EC ? E8 ? ? ? ?", tomb3DLL));
+		Orig_PhotoModeTickTR1 = reinterpret_cast<PhotoModeTickTR123_t>(PatternScan("48 89 5C 24 18 55 56 57 41 54 41 55 41 56 41 57 48 83 EC ? 4C 8B 0D ? ? ? ?", tomb1DLL));
+		Orig_PhotoModeTickTR2 = reinterpret_cast<PhotoModeTickTR123_t>(PatternScan("48 89 5C 24 10 48 89 6C 24 18 48 89 7C 24 20 41 56 48 83 EC ? E8 ? ? ? ?", tomb2DLL));
+		Orig_PhotoModeTickTR3 = reinterpret_cast<PhotoModeTickTR123_t>(PatternScan("48 89 5C 24 10 48 89 6C 24 18 48 89 7C 24 20 41 56 48 83 EC ? E8 ? ? ? ?", tomb3DLL));
 
 		if (!Orig_PhotoModeTickTR1 || !Orig_PhotoModeTickTR2 || !Orig_PhotoModeTickTR3)
 		{
@@ -310,9 +298,9 @@ void PatchModules123()
 			return;
 		}
 
-		Orig_PhotoModeTickTR1 = reinterpret_cast<PhotoModeTickTR1_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR1, (BYTE*)hk_PhotoModeTickTR1, 12));
-		Orig_PhotoModeTickTR2 = reinterpret_cast<PhotoModeTickTR23_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR2, (BYTE*)hk_PhotoModeTickTR2, 17));
-		Orig_PhotoModeTickTR3 = reinterpret_cast<PhotoModeTickTR23_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR3, (BYTE*)hk_PhotoModeTickTR3, 17));
+		Orig_PhotoModeTickTR1 = reinterpret_cast<PhotoModeTickTR123_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR1, (BYTE*)hk_PhotoModeTickTR1, 12));
+		Orig_PhotoModeTickTR2 = reinterpret_cast<PhotoModeTickTR123_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR2, (BYTE*)hk_PhotoModeTickTR2, 17));
+		Orig_PhotoModeTickTR3 = reinterpret_cast<PhotoModeTickTR123_t>(TrampHook64((BYTE*)Orig_PhotoModeTickTR3, (BYTE*)hk_PhotoModeTickTR3, 17));
 
 		//C7 82 F8 02 00 00 03 00 00 00
 
@@ -399,44 +387,10 @@ void PatchModules456()
 		tomb6DLL = GetModuleHandle("tomb6.dll");
 	}
 
-	//Find game ptr that stores the current costume
-	/*
-	std::uintptr_t TR4GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 0D ? ? ? ? FF C0", tomb4DLL);
-	std::uintptr_t TR5GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 0D ? ? ? ? FF C0", tomb5DLL);
-	std::uintptr_t TR6GamePTR_Addr = (std::uintptr_t)PatternScan("48 8B 0D ? ? ? ? FF C0", tomb6DLL);
-
-	if (!TR4GamePTR_Addr || !TR5GamePTR_Addr || !TR6GamePTR_Addr)
-	{
-		std::cout << "[!] Couldn't find TRR Game PTR Address!" << "\n";
-		return;
-	}
-
-	__int64 TRRGamePTR = *(__int64*)GetAddressFromInstruction(TR4GamePTR_Addr, 7);
-
-	if (!TRRGamePTR)
-	{
-		TRRGamePTR = *(__int64*)GetAddressFromInstruction(TR5GamePTR_Addr, 7);
-
-		if (!TRRGamePTR)
-		{
-			TRRGamePTR = *(__int64*)GetAddressFromInstruction(TR6GamePTR_Addr, 7);
-
-			if (!TRRGamePTR)
-			{
-				std::cout << "[!] Couldn't find any TRR Game PTR!" << "\n";
-				return;
-			}
-		}
-	}
-
-	SelectedCostumePTR = (int*)(TRRGamePTR + 0x2DC);
-	*SelectedCostumePTR = Costume;
-	*/
-
 	//Keep photo mode costume
 
-	BYTE* OnPhotoModeExitCostume_TR4 = PatternScan("0F 11 83 60 04 00 00", tomb4DLL);
-	BYTE* OnPhotoModeExitCostume_TR5 = PatternScan("0F 11 83 60 04 00 00", tomb5DLL);
+	BYTE* OnPhotoModeExitCostume_TR4 = PatternScan("0F 11 83 F8 04 00 00", tomb4DLL);
+	BYTE* OnPhotoModeExitCostume_TR5 = PatternScan("0F 11 83 F8 04 00 00", tomb5DLL);
 
 	BYTE OnPhotoModeExitCostumePatch[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
 
@@ -449,16 +403,14 @@ void PatchModules456()
 	Patch(OnPhotoModeExitCostumePatch, OnPhotoModeExitCostume_TR4, sizeof(OnPhotoModeExitCostumePatch));
 	Patch(OnPhotoModeExitCostumePatch, OnPhotoModeExitCostume_TR5, sizeof(OnPhotoModeExitCostumePatch));
 
-	//Force selected costume everywhere
-
 	//Free move
 
 	if (bFreeMove)
 	{
-		BYTE* ResetPositionTR4 = PatternScan("0F 11 47 60 8B 05 ? ? ? ?", tomb4DLL);
-		BYTE* ResetPositionTR5 = PatternScan("0F 11 47 60", tomb5DLL);
+		BYTE* ResetPositionTR4 = PatternScan("0F 11 47 60", tomb4DLL);
+		BYTE* ResetPositionTR5 = PatternScan("0F 11 47 60 8B 05 ? ? ? ?", tomb5DLL);
 		BYTE* ResetPositionsTR6_1 = PatternScan("F3 0F 11 40 40 F3 0F 10 0D ? ? ? ? F3 0F 11 48 44 F3 0F 10 05 ? ? ? ? F3 0F 11 40 48 F3 0F 10 0D ? ? ? ? F3 0F 11 48 4C F3 0F 10 05 ? ? ? ? F3 0F 11 81 10 02 00 00", tomb6DLL);
-		BYTE* ResetPositionsTR6_2 = PatternScan("F3 0F 11 42 40 F3 0F 10 0D ? ? ? ? F3 0F 11 4A 44 F3 0F 10 05 ? ? ? ? F3 0F 11 42 48 F3 0F 10 0D ? ? ? ? F3 0F 11 4A 4C", tomb6DLL);
+		BYTE* ResetPositionsTR6_2 = PatternScan("F3 0F 11 43 40 F3 0F 10 0D ? ? ? ? F3 0F 11 4B 44 F3 0F 10 05 ? ? ? ? F3 0F 11 43 48 F3 0F 10 0D ? ? ? ? F3 0F 11 4B 4C 48 8B 47 60", tomb6DLL);
 
 		if (!ResetPositionTR4 || !ResetPositionTR5 || !ResetPositionsTR6_1 || !ResetPositionsTR6_2)
 		{
@@ -478,6 +430,30 @@ void PatchModules456()
 		Patch(PositionResetPatch2, ResetPositionsTR6_2 + 0xD, sizeof(PositionResetPatch2));
 		Patch(PositionResetPatch2, ResetPositionsTR6_2 + 0x1A, sizeof(PositionResetPatch2));
 	}
+
+	//Brightness
+
+	BYTE* BrightnessResetTR4 = PatternScan("89 8B E8 09 00 00", tomb4DLL); //6
+	BYTE* BrightnessResetTR5 = PatternScan("89 8B E8 09 00 00", tomb5DLL); //6
+
+	BYTE* BrightnessMaxTR4 = PatternScan("47 89 84 3E 7C 9F 1B 00", tomb4DLL); //8
+	BYTE* BrightnessMaxTR5 = PatternScan("47 89 84 3E 1C 49 1B 00", tomb5DLL); //8
+
+	if (!BrightnessResetTR4 || !BrightnessResetTR5 || !BrightnessMaxTR4 || !BrightnessMaxTR5)
+	{
+		std::cout << "[!] Couldn't find brightness reset(s)!" << "\n";
+		return;
+	}
+
+	BYTE BrightnessResetPatch[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
+	BYTE BrightnessMaxPatch[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
+
+	Patch(BrightnessResetPatch, BrightnessResetTR4, sizeof(BrightnessResetPatch));
+	Patch(BrightnessResetPatch, BrightnessResetTR5, sizeof(BrightnessResetPatch));
+	Patch(BrightnessMaxPatch, BrightnessMaxTR4, sizeof(BrightnessMaxPatch));
+	Patch(BrightnessMaxPatch, BrightnessMaxTR5, sizeof(BrightnessMaxPatch));
+
+	std::cout << "[-] Done!" << "\n";
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule,
@@ -498,7 +474,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	return TRUE;
 }
 
-__int16 hk_PhotoModeTickTR1()
+__int64 hk_PhotoModeTickTR1()
 {
 	if (Costume != *SelectedCostumePTR)
 	{
@@ -528,7 +504,7 @@ __int64 hk_PhotoModeTickTR3()
 	{
 		Costume = *SelectedCostumePTR;
 		SaveConfig();
-		PatchCostumeLoads456();
+		PatchCostumeLoads123();
 	}
 
 	return Orig_PhotoModeTickTR3();
