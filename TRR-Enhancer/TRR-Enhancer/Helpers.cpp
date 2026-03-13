@@ -61,47 +61,45 @@ void Patch(BYTE* src, BYTE* dst, const ULONG64 size)
     VirtualProtect(dst, size, curProtection, &curProtection);
 }
 
-//Using RAX can cause crashes in functions that rely on it afterwards
-
 bool Detour64(BYTE* src, BYTE* dst, const ULONG64 size)
 {
-	if (size < 12) return false;
+	if (size < 14) return false;
+
 	DWORD curProtection;
 	VirtualProtect(src, size, PAGE_EXECUTE_READWRITE, &curProtection);
-	//mov rax, ULONG64
-	*(BYTE*)src = 0x48;
-	*(BYTE*)(src + 1) = 0xB8;
-	*(ULONG64*)(src + 2) = (ULONG64)dst;
-	//jmp rax
-	*(BYTE*)(src + 10) = 0xFF;
-	*(BYTE*)(src + 11) = 0xE0;
+
+	src[0] = 0xFF;
+	src[1] = 0x25;
+	*(DWORD*)(src + 2) = 0x00000000;
+	*(ULONG64*)(src + 6) = (ULONG64)dst;
+
+	for (ULONG64 i = 14; i < size; i++) {
+		src[i] = 0x90;
+	}
+
 	VirtualProtect(src, size, curProtection, &curProtection);
 	return true;
 }
 
 BYTE* TrampHook64(BYTE* src, BYTE* dst, const ULONG64 size)
 {
-	if (size < 12) return 0;
-	BYTE* gateway = (BYTE*)VirtualAlloc(0, size + 12, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-	memcpy_s(gateway, size, src, size);
-	//mov rax, ULONG64
-	*(BYTE*)(gateway + size) = 0x48;
-	*(BYTE*)(gateway + size + 1) = 0xB8;
-	*(ULONG64*)((ULONG64)gateway + size + 2) = (ULONG64)src + size;
-	//jmp rax
-	*(BYTE*)(gateway + size + 10) = 0xFF;
-	*(BYTE*)(gateway + size + 11) = 0xE0;
-	Detour64(src, dst, size);
-	return gateway;
-}
+	if (size < 14) return nullptr;
 
-BYTE* RemoveHook(BYTE* src, BYTE* orig, const ULONG64 size)
-{
-	if (size < 12) return 0;
-	DWORD curProtection;
-	VirtualProtect(orig, size, PAGE_EXECUTE_READWRITE, &curProtection);
-	memcpy_s(orig, size, src, size);
-	VirtualProtect(orig, size, curProtection, &curProtection);
-	VirtualFree(src, 0, MEM_RELEASE);
-	return orig;
+	BYTE* gateway = (BYTE*)VirtualAlloc(0, size + 14, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+	if (!gateway) return nullptr;
+
+	memcpy(gateway, src, size);
+
+	BYTE* retAddr = gateway + size;
+	retAddr[0] = 0xFF;
+	retAddr[1] = 0x25;
+	*(DWORD*)(retAddr + 2) = 0x00000000;
+	*(ULONG64*)(retAddr + 6) = (ULONG64)(src + size);
+
+	if (!Detour64(src, dst, size)) {
+		VirtualFree(gateway, 0, MEM_RELEASE);
+		return nullptr;
+	}
+
+	return gateway;
 }
