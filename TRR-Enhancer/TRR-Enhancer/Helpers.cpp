@@ -68,6 +68,7 @@ bool Detour64(BYTE* src, BYTE* dst, const ULONG64 size)
 	DWORD curProtection;
 	VirtualProtect(src, size, PAGE_EXECUTE_READWRITE, &curProtection);
 
+    //FF 25: JMP [RIP+0]
 	src[0] = 0xFF;
 	src[1] = 0x25;
 	*(DWORD*)(src + 2) = 0x00000000;
@@ -91,6 +92,8 @@ BYTE* TrampHook64(BYTE* src, BYTE* dst, const ULONG64 size)
 	memcpy(gateway, src, size);
 
 	BYTE* retAddr = gateway + size;
+
+    //FF 25: JMP [RIP+0]
 	retAddr[0] = 0xFF;
 	retAddr[1] = 0x25;
 	*(DWORD*)(retAddr + 2) = 0x00000000;
